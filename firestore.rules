@@ -1,0 +1,122 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    // Collection: users
+    // Document ID: uid
+    // Fields: uid, email, displayName, role, createdAt
+    
+    // Collection: products
+    // Fields: name, category, sku, barcode, purchasePrice, salePrice, stock, unit, isMedicine, lowStockThreshold
+    
+    // Collection: batches
+    // Fields: productId, batchNumber, expiryDate, quantity
+    
+    // Collection: customers
+    // Fields: name, phone, dueBalance, address
+    
+    // Collection: suppliers
+    // Fields: name, contactPerson, phone, address
+    
+    // Collection: sales
+    // Fields: customerId, items, totalAmount, discount, paidAmount, dueAmount, paymentMethod, createdAt, cashierId
+    
+    // Collection: eservices
+    // Fields: serviceType, description, amount, createdAt, operatorId
+    
+    // Collection: expenses
+    // Fields: category, description, amount, date, recordedBy
+    
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+         (request.auth.token.email == "islamtalicom.306@gmail.com" && request.auth.token.email_verified == true));
+    }
+
+    function isManager() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'manager' || isAdmin());
+    }
+
+    function isStaff() {
+      return isAuthenticated();
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    match /branches/{branchId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /purchases/{purchaseId} {
+      allow read: if isManager();
+      allow create: if isManager();
+      allow update, delete: if isAdmin();
+    }
+
+    match /users/{uid} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAdmin() || (isAuthenticated() && request.auth.uid == uid);
+    }
+
+    match /products/{productId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isManager();
+    }
+
+    match /batches/{batchId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isManager();
+    }
+
+    match /customers/{customerId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isStaff();
+      allow delete: if isAdmin();
+    }
+
+    match /suppliers/{supplierId} {
+      allow read: if isAuthenticated();
+      allow create, update: if isManager();
+      allow delete: if isAdmin();
+    }
+
+    match /sales/{saleId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+    match /eservices/{serviceId} {
+      allow read: if isAuthenticated();
+      allow create: if isStaff();
+      allow update, delete: if isAdmin();
+    }
+
+    match /expenses/{expenseId} {
+      allow read: if isManager();
+      allow create: if isManager();
+      allow update, delete: if isAdmin();
+    }
+  }
+}
